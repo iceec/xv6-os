@@ -23,6 +23,23 @@ struct {
   struct run *freelist;
 } kmem;
 
+//多线程时候是应该加锁的
+uint64 free_page_num()
+{
+  struct  run *p;
+  p=kmem.freelist;
+  uint64 ans=0;
+  acquire(&kmem.lock);
+  while(p)
+  {
+    ++ans;
+    p=p->next;
+  }
+  release(&kmem.lock);
+  //printf("%d\n",ans);
+  return ans;
+}
+
 void
 kinit()
 {

@@ -85,6 +85,19 @@ allocpid() {
   return pid;
 }
 
+
+uint64 unuse_proc_number()
+{
+    struct proc *p;
+    uint64 ans=0;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state!= UNUSED)
+      ++ans;
+    release(&p->lock);
+  }
+  return ans;
+}
 // Look in the process table for an UNUSED proc.
 // If found, initialize state required to run in the kernel,
 // and return with p->lock held.
@@ -126,6 +139,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+  p->trace_number=0;
 
   return p;
 }
@@ -274,6 +288,7 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+  np->trace_number=p->trace_number;  //子进程的trace跟着父进程
 
   np->parent = p;
 

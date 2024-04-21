@@ -95,3 +95,14 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+//设置 trace_number即可
+uint64
+sys_trace(void)
+{
+  int number;
+  if(argint(0,&number)<0)
+    return -1;
+  myproc()->trace_number=number;
+    return 0;
+}

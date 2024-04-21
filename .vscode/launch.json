@@ -1,0 +1,12 @@
+{
+    "configurations": [
+        {   "name":"Debug",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/kernel/kernel",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+        }
+    ],
+    "version": "2.0.0"
+}

@@ -240,6 +240,8 @@ grade:
 ## FOR web handin
 ##
 
+gdb:
+	riscv64-unknown-elf-gdb kernel/kernel
 
 WEBSUB := https://6828.scripts.mit.edu/2020/handin.py
 
@@ -307,3 +309,5 @@ myapi.key:
 
 
 .PHONY: handin tarball tarball-pref clean grade handin-check
+
+

@@ -185,6 +185,12 @@ void            u_kvmmap(pagetable_t ,uint64 , uint64 , uint64 , int );
 void            kvm_free(pagetable_t ,int);
 pte_t *         walk(pagetable_t , uint64 , int );
 
+int             copyin_new(pagetable_t, char *, uint64, uint64);
+
+int              u_kvmcopy(pagetable_t, pagetable_t, uint64,uint64);
+
+int              free_u_kvm(pagetable_t ,uint64,uint64);
+
 // plic.c
 void            plicinit(void);
 void            plicinithart(void);

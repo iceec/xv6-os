@@ -206,7 +206,11 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
     if(*pte & PTE_V)
+    {
+      printf("%p %p\n",va,PTE2PA(*pte));
       panic("remap");
+    }
+      
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -215,6 +219,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   }
   return 0;
 }
+
 
 // Remove npages of mappings starting from va. va must be
 // page-aligned. The mappings must exist.
@@ -282,6 +287,8 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 
   if(newsz < oldsz)
     return oldsz;
+  if(newsz>PLIC)
+    return 0;
 
   oldsz = PGROUNDUP(oldsz);
   for(a = oldsz; a < newsz; a += PGSIZE){
@@ -372,6 +379,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((mem = kalloc()) == 0)
       goto err;
     memmove(mem, (char*)pa, PGSIZE);
+   
     if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
       kfree(mem);
       goto err;
@@ -383,6 +391,51 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   uvmunmap(new, 0, i / PGSIZE, 1);
   return -1;
 }
+
+
+
+int 
+u_kvmcopy(pagetable_t user, pagetable_t ker, uint64 start,uint64 sz)
+{
+  pte_t *pte;
+  uint64 pa, i;
+  uint flags;
+  start=PGROUNDUP(start);
+  for(i = start; i < sz; i += PGSIZE){
+    if((pte = walk(user, i, 0)) == 0)
+      panic("u_kvmcopy: pte should exist");
+    if((*pte & PTE_V) == 0)
+      panic("u_kvmcopy: page not present");
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte) ;
+    printf("start u_k\n");
+    mappages(ker, i, PGSIZE, (uint64)pa, flags&(~(PTE_U)));
+    printf("end u_k\n");
+  }
+  return 0;
+}
+
+int 
+free_u_kvm(pagetable_t ker,uint64 start,uint64 sz)
+{
+  pte_t *pte;
+  uint64  i;
+
+
+  start=PGROUNDUP(start);
+  //sz=PGROUNDUP(sz);
+  for(i = start; i < sz; i += PGSIZE){
+    if((pte = walk(ker, i, 0)) == 0)
+      panic("u_kvmfree: pte should exist");
+    if((*pte & PTE_V) == 0)
+      panic("u_kvmfree: page not present");
+    *pte=0;
+  }
+  return 0;
+}
+
+
+
 
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
@@ -428,23 +481,24 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
-  uint64 n, va0, pa0;
+  return copyin_new(pagetable,dst,srcva,len);
+  // uint64 n, va0, pa0;
 
-  while(len > 0){
-    va0 = PGROUNDDOWN(srcva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
-    n = PGSIZE - (srcva - va0);
-    if(n > len)
-      n = len;
-    memmove(dst, (void *)(pa0 + (srcva - va0)), n);
+  // while(len > 0){
+  //   va0 = PGROUNDDOWN(srcva);
+  //   pa0 = walkaddr(pagetable, va0);
+  //   if(pa0 == 0)
+  //     return -1;
+  //   n = PGSIZE - (srcva - va0);
+  //   if(n > len)
+  //     n = len;
+  //   memmove(dst, (void *)(pa0 + (srcva - va0)), n);
 
-    len -= n;
-    dst += n;
-    srcva = va0 + PGSIZE;
-  }
-  return 0;
+  //   len -= n;
+  //   dst += n;
+  //   srcva = va0 + PGSIZE;
+  // }
+  // return 0;
 }
 
 // Copy a null-terminated string from user to kernel.

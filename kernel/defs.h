@@ -190,7 +190,7 @@ int             copyinstr_new(pagetable_t , char *, uint64 , uint64 );
 
 int              u_kvmcopy(pagetable_t, pagetable_t, uint64,uint64);
 
-int              free_u_kvm(pagetable_t ,uint64,uint64,int);
+int              free_u_kvm(pagetable_t ,uint64,uint64);
 
 // plic.c
 void            plicinit(void);

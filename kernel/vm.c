@@ -419,32 +419,34 @@ u_kvmcopy(pagetable_t user, pagetable_t ker, uint64 start,uint64 sz)
 }
 
 int 
-free_u_kvm(pagetable_t ker,uint64 oldsz,uint64 newsz,int do_free)  //原来有五
+free_u_kvm(pagetable_t ker,uint64 start,uint64 end)  //原来有五
 {
-  // pte_t *pte;
-  // uint64  i;
+  if(start>=end)
+    return 0;
+  pte_t *pte;
+  uint64  i;
 
 
-  // start=PGROUNDUP(start);
-  // sz=PGROUNDUP(sz);
-  // for(i = start; i < sz; i += PGSIZE){
-  //   if((pte = walk(ker, i, 0)) == 0)
-  //     panic("u_kvmfree: pte should exist");
-  //   if((*pte & PTE_V) == 0)
-  //     panic("u_kvmfree: page not present");
-  //   *pte=0;
-  // }
-  // return 0;
-
-    if(newsz >= oldsz)
-    return oldsz;
-
-  if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)){
-    int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
-    uvmunmap(ker, PGROUNDUP(newsz), npages, do_free);
+  start=PGROUNDUP(start);
+  end=PGROUNDUP(end);
+  for(i = start; i < end; i += PGSIZE){
+    if((pte = walk(ker, i, 0)) == 0)
+      panic("u_kvmfree: pte should exist");
+    if((*pte & PTE_V) == 0)
+      panic("u_kvmfree: page not present");
+    *pte=0;
   }
+  return 0;
 
-  return newsz;
+  //   if(newsz >= oldsz)
+  //   return oldsz;
+
+  // if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)){
+  //   int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
+  //   uvmunmap(ker, PGROUNDUP(newsz), npages, do_free);
+  // }
+
+  // return newsz;
   
 }
 

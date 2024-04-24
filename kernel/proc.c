@@ -268,7 +268,7 @@ userinit(void)
 int
 growproc(int n)
 {
-  uint sz,old;
+  uint sz,old; 
   struct proc *p = myproc();
 
   if(n>0&&p->sz+n>PLIC)
@@ -284,7 +284,7 @@ growproc(int n)
 
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
-    free_u_kvm(p->k_pagetable,p->sz,sz,0);
+    free_u_kvm(p->k_pagetable,sz,p->sz);
   }
   p->sz = sz;
   return 0;

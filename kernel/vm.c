@@ -69,7 +69,7 @@ u_kvminit()
   u_kvmmap(temp,VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
 
   // CLINT
-  u_kvmmap(temp,CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+  //u_kvmmap(temp,CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 
   // PLIC
   u_kvmmap(temp,PLIC, PLIC, 0x400000, PTE_R | PTE_W);
@@ -397,10 +397,12 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 int 
 u_kvmcopy(pagetable_t user, pagetable_t ker, uint64 start,uint64 sz)
 {
+  
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  start=PGROUNDUP(start);
+  start=PGROUNDUP(start);     //这个地方不能up  why?
+  //sz=PGROUNDUP(sz);
   for(i = start; i < sz; i += PGSIZE){
     if((pte = walk(user, i, 0)) == 0)
       panic("u_kvmcopy: pte should exist");
@@ -408,30 +410,42 @@ u_kvmcopy(pagetable_t user, pagetable_t ker, uint64 start,uint64 sz)
       panic("u_kvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte) ;
-    printf("start u_k\n");
-    mappages(ker, i, PGSIZE, (uint64)pa, flags&(~(PTE_U)));
-    printf("end u_k\n");
+    //printf("start u_k\n");
+   if(mappages(ker, i, PGSIZE, pa, flags&(~(PTE_U)))!=0)
+      printf("npnp");
+    //printf("end u_k\n");
   }
   return 0;
 }
 
 int 
-free_u_kvm(pagetable_t ker,uint64 start,uint64 sz)
+free_u_kvm(pagetable_t ker,uint64 oldsz,uint64 newsz,int do_free)  //原来有五
 {
-  pte_t *pte;
-  uint64  i;
+  // pte_t *pte;
+  // uint64  i;
 
 
-  start=PGROUNDUP(start);
-  //sz=PGROUNDUP(sz);
-  for(i = start; i < sz; i += PGSIZE){
-    if((pte = walk(ker, i, 0)) == 0)
-      panic("u_kvmfree: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("u_kvmfree: page not present");
-    *pte=0;
+  // start=PGROUNDUP(start);
+  // sz=PGROUNDUP(sz);
+  // for(i = start; i < sz; i += PGSIZE){
+  //   if((pte = walk(ker, i, 0)) == 0)
+  //     panic("u_kvmfree: pte should exist");
+  //   if((*pte & PTE_V) == 0)
+  //     panic("u_kvmfree: page not present");
+  //   *pte=0;
+  // }
+  // return 0;
+
+    if(newsz >= oldsz)
+    return oldsz;
+
+  if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)){
+    int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
+    uvmunmap(ker, PGROUNDUP(newsz), npages, do_free);
   }
-  return 0;
+
+  return newsz;
+  
 }
 
 
@@ -508,40 +522,41 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
-  uint64 n, va0, pa0;
-  int got_null = 0;
+  return copyinstr_new(pagetable,dst,srcva,max);
+  // uint64 n, va0, pa0;
+  // int got_null = 0;
 
-  while(got_null == 0 && max > 0){
-    va0 = PGROUNDDOWN(srcva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
-    n = PGSIZE - (srcva - va0);
-    if(n > max)
-      n = max;
+  // while(got_null == 0 && max > 0){
+  //   va0 = PGROUNDDOWN(srcva);
+  //   pa0 = walkaddr(pagetable, va0);
+  //   if(pa0 == 0)
+  //     return -1;
+  //   n = PGSIZE - (srcva - va0);
+  //   if(n > max)
+  //     n = max;
 
-    char *p = (char *) (pa0 + (srcva - va0));
-    while(n > 0){
-      if(*p == '\0'){
-        *dst = '\0';
-        got_null = 1;
-        break;
-      } else {
-        *dst = *p;
-      }
-      --n;
-      --max;
-      p++;
-      dst++;
-    }
+  //   char *p = (char *) (pa0 + (srcva - va0));
+  //   while(n > 0){
+  //     if(*p == '\0'){
+  //       *dst = '\0';
+  //       got_null = 1;
+  //       break;
+  //     } else {
+  //       *dst = *p;
+  //     }
+  //     --n;
+  //     --max;
+  //     p++;
+  //     dst++;
+  //   }
 
-    srcva = va0 + PGSIZE;
-  }
-  if(got_null){
-    return 0;
-  } else {
-    return -1;
-  }
+  //   srcva = va0 + PGSIZE;
+  // }
+  // if(got_null){
+  //   return 0;
+  // } else {
+  //   return -1;
+  // }
 }
 
 

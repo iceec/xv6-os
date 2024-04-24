@@ -268,19 +268,23 @@ userinit(void)
 int
 growproc(int n)
 {
-  uint sz;
+  uint sz,old;
   struct proc *p = myproc();
 
+  if(n>0&&p->sz+n>PLIC)
+    return -1;
+
   sz = p->sz;
+  old=sz;
   if(n > 0){
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
     }
-    u_kvmcopy(p->pagetable,p->k_pagetable,sz-n,sz);
+    u_kvmcopy(p->pagetable,p->k_pagetable,old,sz);
 
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
-    free_u_kvm(p->k_pagetable,sz,sz-n);
+    free_u_kvm(p->k_pagetable,p->sz,sz,0);
   }
   p->sz = sz;
   return 0;

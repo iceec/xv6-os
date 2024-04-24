@@ -64,7 +64,7 @@ exec(char *path, char **argv)
   p = myproc();
   uint64 oldsz = p->sz;
 
-  free_u_kvm(p->k_pagetable,0,oldsz);
+  //free_u_kvm(p->k_pagetable,0,oldsz);
 
   // Allocate two pages at the next page boundary.
   // Use the second as the user stack.
@@ -116,12 +116,15 @@ exec(char *path, char **argv)
   // Commit to the user image.
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
-  u_kvmcopy(p->pagetable,p->k_pagetable,0,sz);
+ 
 
   p->sz = sz;
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
+  //free_u_kvm(p->k_pagetable,oldsz,0,0);   //这个地方放下来 不然 你先free了不行阿 还有就是你这里要是 old和0一个页的花就不释放了所以用下面的
+  uvmunmap(p->k_pagetable,0,PGROUNDUP(oldsz)/PGSIZE,0);  
+  u_kvmcopy(p->pagetable,p->k_pagetable,0,sz);
 
   if(p->pid==1)
     vmprint(p->pagetable,0);

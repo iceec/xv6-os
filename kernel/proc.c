@@ -113,6 +113,7 @@ found:
     return 0;
   }
 
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -126,7 +127,10 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
+  p->ticks=0;
+  p->limitslick=-1;
+  p->infunc=0;
+  p->func_pointer=0;
   return p;
 }
 

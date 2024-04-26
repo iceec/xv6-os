@@ -96,3 +96,42 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+uint64 
+sys_sigalarm(void)
+{
+  int number;
+  uint64 funcaddr;
+  struct proc * p =myproc();
+  if(argint(0, &number) < 0 ||argaddr(1,&funcaddr)<0)
+    return -1;
+
+  if(walkaddr(p->pagetable,funcaddr)==0)
+  {
+    printf("funcaddr walkaddr fault\n");
+    return -1;
+  }
+
+  if(number<=0)
+    return 0;
+  p->limitslick=number;
+  p->func_pointer=funcaddr; 
+  p->ticks=0;
+  p->infunc=0;
+
+  return 0;
+}
+
+//sigreturn 的注释  ：你需要一章表 保存之前的trame 然后在return 时设置回去 epc不要+4 因为这个是func 返回 返回是你中段时候的地址
+//即为在 计时器哪个地方
+uint64 
+sys_sigreturn(void)
+{
+  struct proc * p =myproc();
+  if(p->infunc==0)
+    panic("no way");
+  p->infunc=0;
+  memmove(p->trapframe,&(p->func_return_trapframe),sizeof(struct trapframe));
+  return 0;
+}

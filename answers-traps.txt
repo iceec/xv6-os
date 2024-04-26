@@ -1,0 +1,2 @@
+1: a0 a1
+2: no call for f and g

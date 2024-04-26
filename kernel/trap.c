@@ -29,6 +29,33 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
+
+
+ // 如果时间次数到了  p->ticks>=p->limit_tick&&p->infuc==false  设置 pc->infuc=true
+  //p->ticks清为0 设置trampe epc =函数地址   保存现在的trame 到 prefunctrame中去
+  //now is interrupt off
+void hadle_alarm(void)
+{
+  struct proc *p = myproc();
+  if(p->limitslick<0)
+    return;
+  if(p->ticks<0)
+    panic("hadle_alarm ticks neg");
+
+  ++p->ticks;
+  if(p->infunc)
+    return;
+  if(p->ticks<p->limitslick)
+    return;
+  p->infunc=1;
+  p->ticks=0;
+  //copy to return func tramp
+  memmove(&(p->func_return_trapframe),p->trapframe,sizeof(struct trapframe));
+  p->trapframe->epc=p->func_pointer;
+}
+
+
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -55,11 +82,9 @@ usertrap(void)
 
     if(p->killed)
       exit(-1);
-
     // sepc points to the ecall instruction,
     // but we want to return to the next instruction.
     p->trapframe->epc += 4;
-
     // an interrupt will change sstatus &c registers,
     // so don't enable until done with those registers.
     intr_on();
@@ -77,8 +102,15 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
+ 
+
+
   if(which_dev == 2)
+  {
+    hadle_alarm();
     yield();
+  }
+    
 
   usertrapret();
 }
@@ -119,7 +151,7 @@ usertrapret(void)
   w_sepc(p->trapframe->epc);
 
   // tell trampoline.S the user page table to switch to.
-  uint64 satp = MAKE_SATP(p->pagetable);
+  uint64 satp = MAKE_SATP(p->pagetable);   //先设置了页表
 
   // jump to trampoline.S at the top of memory, which 
   // switches to the user page table, restores user registers,

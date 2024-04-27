@@ -34,6 +34,7 @@ trapinithart(void)
 int 
 in_range(uint64 va)
 {
+
   struct proc * p=myproc();
   if(va>=MAXVA)
     return 0;
@@ -42,8 +43,9 @@ in_range(uint64 va)
 
 uint64 page_guard_high=PGROUNDDOWN(p->sz-1); //sz 是触及不到的 sz-1才是栈顶
 
-if(va>=(page_guard_high-PGSIZE)&&va<page_guard_high)  // 保护页
+if(va>(page_guard_high-PGSIZE)&&va<page_guard_high)  // 保护页
 {
+ 
     printf("%p %p %p %p\n",va,page_guard_high,page_guard_high-PGSIZE,p->sz);
     return 0;
 }
@@ -73,6 +75,7 @@ return 1;
 void
 handle_fork()
 {
+
    struct proc * p=myproc();
    uint64 pa=walkaddr(p->pagetable,r_stval());
    pte_t * pte=walk(p->pagetable, r_stval(), 0);
@@ -90,7 +93,10 @@ handle_fork()
     uint flags=PTE_FLAGS(*pte);
     char* mem = kalloc();
     if(mem == 0)
-        p->killed=1;
+    {
+      p->killed=1;
+      return;
+    }
     memmove(mem, (const void *)pa, PGSIZE);
     *pte = PA2PTE(mem)|flags;
    }
@@ -101,14 +107,18 @@ handle_fork()
 void 
 handle_sbrk()
 {
+  
+
+
     struct proc * p=myproc();
      char* mem = kalloc();
     if(mem == 0){
-        //printf("no mem for r_scause()\n");
+       // printf("no mem for r_scause()\n");
         p->killed=1;
+        return;
     }
     memset(mem, 0, PGSIZE);
-    if(mappages(myproc()->pagetable,PGROUNDDOWN(r_stval()), PGSIZE, (uint64)mem,PTE_W|PTE_R|PTE_X|PTE_U) != 0){
+    if(mappages(p->pagetable,PGROUNDDOWN(r_stval()), PGSIZE, (uint64)mem,PTE_W|PTE_R|PTE_X|PTE_U) != 0){
       kfree(mem);
       //printf("r_scause() wrong\n");
       p->killed=1;

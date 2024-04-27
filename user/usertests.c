@@ -2225,6 +2225,9 @@ sbrkarg(char *s)
   int fd, n;
 
   a = sbrk(PGSIZE);
+
+  printf("%p\n",a);
+
   fd = open("sbrk", O_CREATE|O_WRONLY);
   unlink("sbrk");
   if(fd < 0)  {

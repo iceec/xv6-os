@@ -48,6 +48,7 @@ sys_sbrk(void)
     return -1;
   addr = myproc()->sz;
   
+
   struct proc *p = myproc();
   uint64 sz=p->sz;
   if(n < 0)
@@ -58,7 +59,11 @@ sys_sbrk(void)
   {
     sz=sz+n;
   }
-  p->sz = sz;
+
+
+   p->sz = sz;
+ 
+ 
 
   //if(growproc(n) < 0)
    // return -1;

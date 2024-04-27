@@ -39,8 +39,80 @@ in_range(uint64 va)
     return 0;
   if(va>=p->sz)
     return 0;
+
+uint64 page_guard_high=PGROUNDDOWN(p->sz-1); //sz 是触及不到的 sz-1才是栈顶
+
+if(va>=(page_guard_high-PGSIZE)&&va<page_guard_high)  // 保护页
+{
+    printf("%p %p %p %p\n",va,page_guard_high,page_guard_high-PGSIZE,p->sz);
+    return 0;
+}
+
+pte_t * pte=walk(p->pagetable, va, 0);
+
+if(pte==0||((*pte&PTE_V)==0))  //表明现在还没有分配内存呢
+  return 1;
+
+uint flags = PTE_FLAGS(*pte);
+
+if((flags&(PTE_F))==0) 
+{
+  //printf("no read\n");
+  return 0;
+} //表明这并不是 fork可以写的
   
+    
+if(flags&(PTE_F))
+    return 2;
+
+
+panic("mei xiang dao de\n");
 return 1;
+}
+
+void
+handle_fork()
+{
+   struct proc * p=myproc();
+   uint64 pa=walkaddr(p->pagetable,r_stval());
+   pte_t * pte=walk(p->pagetable, r_stval(), 0);
+
+   if(pa==0)
+    panic("no be in handle fork\n");
+
+  *pte &= ~(PTE_F);
+    *pte |= PTE_W;
+
+   int need=decrease_count(pa);
+
+   if(need)
+   {
+    uint flags=PTE_FLAGS(*pte);
+    char* mem = kalloc();
+    if(mem == 0)
+        p->killed=1;
+    memmove(mem, (const void *)pa, PGSIZE);
+    *pte = PA2PTE(mem)|flags;
+   }
+
+
+}
+
+void 
+handle_sbrk()
+{
+    struct proc * p=myproc();
+     char* mem = kalloc();
+    if(mem == 0){
+        //printf("no mem for r_scause()\n");
+        p->killed=1;
+    }
+    memset(mem, 0, PGSIZE);
+    if(mappages(myproc()->pagetable,PGROUNDDOWN(r_stval()), PGSIZE, (uint64)mem,PTE_W|PTE_R|PTE_X|PTE_U) != 0){
+      kfree(mem);
+      //printf("r_scause() wrong\n");
+      p->killed=1;
+    }
 }
 
 //
@@ -82,20 +154,13 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   }
-  else if((r_scause()==13||r_scause()==15)&&(in_range(r_stval())==1)){
+  else if((r_scause()==13||r_scause()==15)&&(in_range(r_stval())!=0)){
     //printf("in page fault\n");
     // 分配页面给这个va 
-   char* mem = kalloc();
-    if(mem == 0){
-        printf("no mem for r_scause()\n");
-        myproc()->killed=1;
-    }
-    memset(mem, 0, PGSIZE);
-    if(mappages(myproc()->pagetable,PGROUNDDOWN(r_stval()), PGSIZE, (uint64)mem,PTE_W|PTE_R|PTE_U) != 0){
-      kfree(mem);
-      printf("r_scause() wrong\n");
-      myproc()->killed=1;
-    }
+  if(in_range(r_stval())==2)
+    handle_fork();
+  else
+    handle_sbrk();
   }
 else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);

@@ -1,0 +1,1 @@
+1. becasuse when two thread put differents key vaule in same bucket maybe lost one 

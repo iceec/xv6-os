@@ -11,9 +11,28 @@
 #define MAX_THREAD  4
 
 
+struct context {
+  uint64 ra;
+  uint64 sp;
+
+  // callee-saved
+  uint64 s0;
+  uint64 s1;
+  uint64 s2;
+  uint64 s3;
+  uint64 s4;
+  uint64 s5;
+  uint64 s6;
+  uint64 s7;
+  uint64 s8;
+  uint64 s9;
+  uint64 s10;
+  uint64 s11;
+};
 struct thread {
   char       stack[STACK_SIZE]; /* the thread's stack */
   int        state;             /* FREE, RUNNING, RUNNABLE */
+  struct  context  t_context;
 
 };
 struct thread all_thread[MAX_THREAD];
@@ -61,8 +80,11 @@ thread_schedule(void)
     current_thread = next_thread;
     /* YOUR CODE HERE
      * Invoke thread_switch to switch from t to next_thread:
+     if  yield here  那么 sp 和 其它东西不用管了  存第一个 然后用第二个
      * thread_switch(??, ??);
      */
+ 
+    thread_switch((uint64)&(t->t_context),(uint64)&(next_thread->t_context));
   } else
     next_thread = 0;
 }
@@ -77,6 +99,10 @@ thread_create(void (*func)())
   }
   t->state = RUNNABLE;
   // YOUR CODE HERE
+  //设置返回地址 sp
+  memset(&(t->t_context),0,sizeof(struct context));
+  t->t_context.ra=(uint64)func;
+  t->t_context.sp=(uint64)(t->stack+STACK_SIZE-1);
 }
 
 void 

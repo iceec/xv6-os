@@ -35,6 +35,47 @@ argfd(int n, int *pfd, struct file **pf)
   return 0;
 }
 
+
+
+struct inode *
+find_src_inode(struct inode * ip,int times)
+{
+ // printf("%d\n",times);
+  if(times<=0)
+    return 0;
+
+  if(ip->type == T_FILE)
+  {
+    return ip;
+  }
+  else if(ip->type == T_SYMLINK)
+  {
+
+    char buf[MAXPATH];
+    int len;
+    if((len=readi(ip,0,(uint64)buf,0,sizeof(buf)))!=sizeof(buf))
+    {
+      panic("should be buf");
+    }
+ 
+    iunlockput(ip);
+
+    if((ip=namei(buf))==0)
+    {
+      return 0;
+    }
+    ilock(ip);
+    return find_src_inode(ip,times-1);
+  }
+  else
+  {
+    printf("%d\n",ip->type);
+    panic("no way");
+  }
+  return 0;
+
+}
+
 // Allocate a file descriptor for the given file.
 // Takes over file reference from caller on success.
 static int
@@ -137,6 +178,15 @@ sys_link(void)
     end_op();
     return -1;
   }
+  else if(ip->type == T_SYMLINK)
+  {
+    ip=find_src_inode(ip,11);
+    if(ip==0)
+    {
+      end_op();
+      return -1;
+    }
+  }
 
   ip->nlink++;
   iupdate(ip);
@@ -213,6 +263,12 @@ sys_unlink(void)
   if(ip->type == T_DIR && !isdirempty(ip)){
     iunlockput(ip);
     goto bad;
+  }
+  else if(ip->type == T_SYMLINK)
+  {
+    ip=find_src_inode(ip,11);
+    if(ip==0)
+      goto bad;
   }
 
   memset(&de, 0, sizeof(de));
@@ -316,11 +372,21 @@ sys_open(void)
     }
   }
 
-  if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
+   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
     iunlockput(ip);
     end_op();
     return -1;
   }
+
+    if(ip->type == T_SYMLINK && (omode & O_NOFOLLOW)==0)
+    {
+      ip=find_src_inode(ip,11);
+      if(ip==0)
+      {
+        end_op();
+        return -1;
+      }
+    }
 
   if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
     if(f)
@@ -484,3 +550,37 @@ sys_pipe(void)
   }
   return 0;
 }
+
+
+
+ uint64 
+ sys_symlink(void)
+ {
+  
+  char tar_name[MAXPATH]={0};
+  char path_name[MAXPATH]={0};
+
+  if(argstr(0, tar_name, MAXPATH) < 0 || argstr(1, path_name, MAXPATH) < 0)
+    return -1;
+
+
+  struct inode *path_inode;
+
+  begin_op();  
+  if((path_inode=create(path_name,T_SYMLINK,0,0))==0)
+  {
+    end_op();
+    return 0;
+  }
+
+
+  int len;
+  if((len=writei(path_inode,0,(uint64)tar_name,0,sizeof(path_name)))!=sizeof(path_name))
+  {
+    panic("symlink");
+    return 0;
+  }
+  iunlockput(path_inode);
+  end_op();
+  return 0;
+ }

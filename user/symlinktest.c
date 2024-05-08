@@ -20,8 +20,11 @@ int
 main(int argc, char *argv[])
 {
   cleanup();
+ 
   testsymlink();
+  
   concur();
+  
   exit(failed);
 }
 

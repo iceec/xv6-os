@@ -40,9 +40,16 @@ argfd(int n, int *pfd, struct file **pf)
 struct inode *
 find_src_inode(struct inode * ip,int times)
 {
- // printf("%d\n",times);
+ 
   if(times<=0)
+  {
+    if(ip!=0)
+    {
+      iunlockput(ip);
+    }
     return 0;
+  }
+    
 
   if(ip->type == T_FILE)
   {
@@ -64,13 +71,15 @@ find_src_inode(struct inode * ip,int times)
     {
       return 0;
     }
+
     ilock(ip);
+
     return find_src_inode(ip,times-1);
   }
   else
   {
-    printf("%d\n",ip->type);
-    panic("no way");
+    iunlockput(ip);
+    return 0;
   }
   return 0;
 
@@ -178,15 +187,7 @@ sys_link(void)
     end_op();
     return -1;
   }
-  else if(ip->type == T_SYMLINK)
-  {
-    ip=find_src_inode(ip,11);
-    if(ip==0)
-    {
-      end_op();
-      return -1;
-    }
-  }
+
 
   ip->nlink++;
   iupdate(ip);
@@ -264,12 +265,7 @@ sys_unlink(void)
     iunlockput(ip);
     goto bad;
   }
-  else if(ip->type == T_SYMLINK)
-  {
-    ip=find_src_inode(ip,11);
-    if(ip==0)
-      goto bad;
-  }
+
 
   memset(&de, 0, sizeof(de));
   if(writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))

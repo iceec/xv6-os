@@ -134,6 +134,11 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+
+  for(int i=0;i<MAXVMA;++i)
+    p->info[i].used=-1;
+
+
   return p;
 }
 

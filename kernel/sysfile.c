@@ -484,3 +484,136 @@ sys_pipe(void)
   }
   return 0;
 }
+
+
+uint64
+sys_mmap(void)
+{
+
+
+uint64 addr;
+int legth,prot,flags,offset;
+struct file * f;
+
+
+if(argaddr(0,&addr)<0 || argint(1,&legth) || argint(2,&prot)<0 
+  || argint(3,&flags)<0 || argfd(4,0,&f)<0 || argint(5,&offset)< 0)
+    return -1;
+
+
+if(f->readable==0 && (prot &PROT_READ))
+  return -1;
+
+if(f->writable==0 && (prot &PROT_WRITE) && (flags & MAP_SHARED))
+  return -1;
+
+int j=-1;
+struct proc * p=myproc();
+for(int i=0;i<MAXVMA;++i)
+{
+  if(p->info[i].used==-1)
+  {
+      j=i;
+      break;
+  }
+}
+if(j==-1)
+  return -1;
+
+
+filedup(f);
+p->info[j].used=1;
+p->info[j].f=f;
+p->info[j].offset=offset;
+p->info[j].flags=flags;
+p->info[j].prot=prot;
+p->info[j].legth=legth;
+p->info[j].addr=PGROUNDUP(p->sz);
+p->sz=p->info[j].addr+p->info[j].legth;
+
+return p->info[j].addr;
+
+}
+
+
+
+
+
+void 
+mmap_write(struct file *f,int legth,uint64 addr,int offset)
+{
+
+    int max = ((MAXOPBLOCKS-1-1-2) / 2) * BSIZE;
+    int i = 0;
+    int r;
+    while(i < legth){
+      int n1 = legth - i;
+      if(n1 > max)
+        n1 = max;
+
+      begin_op();
+      ilock(f->ip);
+      if ((r = writei(f->ip, 1, addr + i, offset, n1)) > 0)
+            offset+=r;
+
+      iunlock(f->ip);
+      end_op();
+      if(r != n1){
+        // error from writei
+        break;
+      }
+      i += r;
+    } 
+}
+
+
+
+
+uint64
+sys_munmap(void)
+{
+  uint64 addr;
+  int legth;
+
+  if(argaddr(0,&addr)<0 || argint(1,&legth)<0)
+    return -1;
+  
+
+  struct proc * p=myproc();
+  int j=-1;
+  for(int i=0;i<MAXVMA;++i)
+  {
+    if(p->info[i].used!=-1 && (addr>=p->info[i].addr&&addr<(p->info[i].addr+p->info[i].legth)))
+    {
+      j=i;
+      break;
+    }
+  }
+
+  if(j==-1)
+    return -1;
+
+
+  if(p->info[j].addr==addr)
+  {
+    p->info[j].addr+=legth;
+    p->info[j].legth-=legth;
+
+  if(p->info[j].flags &MAP_SHARED)
+      mmap_write(p->info[j].f,legth,addr,p->info[j].offset);
+
+    p->info[j].offset+=legth;
+    uvmunmap(p->pagetable,addr,legth/PGSIZE,1);
+  }
+
+
+  if(p->info[j].legth==0)
+  {
+      fileclose(p->info[j].f);
+      p->info[j].used=-1;
+  }
+
+return 0;
+}
+
+

@@ -2,9 +2,13 @@
 #include "param.h"
 #include "memlayout.h"
 #include "riscv.h"
+#include "fs.h"
 #include "spinlock.h"
+#include "sleeplock.h"
+#include "file.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -15,6 +19,48 @@ extern char trampoline[], uservec[], userret[];
 void kernelvec();
 
 extern int devintr();
+
+
+
+int 
+is_vma_range(void)
+{
+
+
+uint64 va=r_stval();
+struct proc *p=myproc();
+if(va>=MAXVA || va>=p->sz || PGROUNDUP(va)== PGROUNDDOWN(p->trapframe->sp))
+  return -1;
+
+int j=-1;
+for(int i=0;i<MAXVMA;++i)
+{
+
+    if(p->info[i].used==1 && (va>=p->info[i].addr&&va<(p->info[i].addr+ p->info[i].legth)))
+    {
+      j=i;
+      break;
+    }
+}
+
+if(j==-1)
+  return -1;
+
+
+if(r_scause()==15 && (p->info[j].prot & PROT_WRITE)==0)
+    return -1;
+
+if(r_scause()==13 && (p->info[j].prot * PROT_READ)==0)
+  return -1;
+
+
+return j;
+}
+
+
+
+
+
 
 void
 trapinit(void)
@@ -37,7 +83,7 @@ void
 usertrap(void)
 {
   int which_dev = 0;
-
+  int j=-1;
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
 
@@ -65,7 +111,51 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  }
+
+
+  else if((r_scause()==13 || r_scause()==15)&&((j=is_vma_range())!=-1))
+  {
+    // if(r_scause()==13)
+    //   printf("read\n");
+    // else
+    //   printf("write\n");
+
+    uint64 va=PGROUNDDOWN(r_stval());
+    struct proc *p=myproc();
+
+    char *mem;
+  if((mem = kalloc()) == 0)
+  {
+    printf("out of memeory\n");
+    p->killed=1;
+  }
+  else
+  {
+    memset(mem,0,PGSIZE);
+    int flags=PTE_U;
+    if(p->info[j].prot & PROT_READ)
+      flags |=PTE_R;
+
+    if(p->info[j].prot & PROT_WRITE)
+      flags |=PTE_W;
+
+    if(p->info[j].prot & PROT_EXEC)
+      flags |=PTE_X;
+
+    if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags) != 0){
+      kfree(mem);
+      p->killed=1;
+    }
+    else
+    {
+     ilock(p->info[j].f->ip);
+     readi(p->info[j].f->ip,0,(uint64)mem,(va-p->info[j].addr+p->info[j].offset),PGSIZE);
+     iunlock(p->info[j].f->ip);
+    }
+  }
+  }
+  else if((which_dev = devintr()) != 0){
     // ok
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);

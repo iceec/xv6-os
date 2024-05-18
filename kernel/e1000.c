@@ -93,8 +93,38 @@ e1000_init(uint32 *xregs)
 }
 
 int
-e1000_transmit(struct mbuf *m)
+e1000_transmit(struct mbuf *m)   //多个进程执行
 {
+
+
+  uint32 index=-1; 
+  acquire(&e1000_lock);
+  index=regs[E1000_TDT];
+  
+  if((tx_ring[index].status & E1000_TXD_STAT_DD)==0)
+  {
+    release(&e1000_lock);
+    return -1;
+  } 
+
+
+  
+  if(tx_mbufs[index])
+    mbuffree(tx_mbufs[index]);
+
+
+  tx_mbufs[index]=m;
+  tx_ring[index].addr=(uint64)m->head;
+  tx_ring[index].length=m->len;
+  tx_ring[index].cmd=E1000_TXD_CMD_EOP | E1000_TXD_CMD_RS;
+
+
+
+ regs[E1000_TDT]=(index+1)%TX_RING_SIZE;   // 必须在后面 要不然这地方每设置完就整 不行
+  release(&e1000_lock);
+ 
+  return 0;
+
   //
   // Your code here.
   //
@@ -102,13 +132,37 @@ e1000_transmit(struct mbuf *m)
   // the TX descriptor ring so that the e1000 sends it. Stash
   // a pointer so that it can be freed after sending.
   //
-  
-  return 0;
 }
 
+
+// 不能用🔓  但是只有一个进程来执行  用所会panic
 static void
 e1000_recv(void)
 {
+
+  uint32 index;
+  index=regs[E1000_RDT];
+  
+  index=(index+1)%RX_RING_SIZE;
+
+  while((rx_ring[index].status & E1000_RXD_STAT_DD))
+  {
+    rx_mbufs[index]->len=rx_ring[index].length;
+    net_rx(rx_mbufs[index]);
+    struct mbuf * p=mbufalloc(0);
+      if(p==0)
+        panic("recv e1000");
+
+    memset(&rx_ring[index],0,sizeof(rx_ring[index]));
+    rx_ring[index].addr=(uint64)(p->head);
+    rx_mbufs[index]=p;
+   index=(index+1)%RX_RING_SIZE;
+  }
+  regs[E1000_RDT]=(index+RX_RING_SIZE-1)%RX_RING_SIZE;
+
+ 
+  
+  return ;
   //
   // Your code here.
   //

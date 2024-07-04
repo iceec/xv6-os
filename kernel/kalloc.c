@@ -26,10 +26,10 @@ struct {
   struct run *freelist;
 } kmem;
 
+// 为每一个内存页保持计数
 struct{
-
 struct spinlock lock;
-int count[(PHYSTOP-KERNBASE)/PGSIZE];
+int count[(PHYSTOP-KERNBASE)/PGSIZE];  // why kernel base 就是保证内核的代码也一样有计数
 } kcount;
 
 void
@@ -40,7 +40,7 @@ kinit()
 
   acquire(&kcount.lock);
   for(int i=0;i<(PHYSTOP-KERNBASE)/PGSIZE;++i)
-      kcount.count[i]=1;
+      kcount.count[i]=1;   // 初始化的时候设置成为 1
   release(&kcount.lock);
     
 
@@ -68,22 +68,19 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
-  int ans;
+  int free_count;
   uint64 p_a=(uint64)pa;
 
   acquire(&kcount.lock);
-  if(kcount.count[PACOUNT(p_a)]<1){
-    panic("kfree should >=1\n");
-  }
-  ans=--kcount.count[PACOUNT(p_a)];
-  //  if(PACOUNT(p_a)==1304)
-  //   {
-  //     printf("kfree %d\n",kcount.count[PACOUNT(p_a)]);
-  //   }
+  if(kcount.count[PACOUNT(p_a)]<1)
+      panic("kfree should >=1\n");
+
+  free_count=--kcount.count[PACOUNT(p_a)];  //减小为0
+
   release(&kcount.lock);
     
 
-if(ans==0)
+if(free_count==0)
 {
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
@@ -116,14 +113,10 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
     uint64 pa=(uint64)r;
     acquire(&kcount.lock);
-    if(kcount.count[PACOUNT(pa)]!=0){
+    if(kcount.count[PACOUNT(pa)]!=0)
       panic("kalloc should be 1");
-    }
+
     kcount.count[PACOUNT(pa)]=1;
-    // if(PACOUNT(pa)==1304)
-    // {
-    //   printf("kalloc %d\n",kcount.count[PACOUNT(pa)]);
-    // }
     release(&kcount.lock);
   }
     
@@ -137,13 +130,10 @@ void increase_count(uint64 pa)
       panic("increase");
     }
     ++kcount.count[PACOUNT(pa)];
-    // if(PACOUNT(pa)==1304)
-    // {
-    //   printf("increase %d\n",kcount.count[PACOUNT(pa)]);
-    // }
     release(&kcount.lock);
 }
 
+// if 你是最后一个指向的 那么返回0 不然返回1 
 int decrease_count(uint64 pa)
 {
   int ans;
@@ -152,16 +142,12 @@ int decrease_count(uint64 pa)
       panic("decrease");
     }
     if(kcount.count[PACOUNT(pa)]==1)
-     ans=0;
+      ans=0;
     else
     {
       ans=1;
       --kcount.count[PACOUNT(pa)];
     }
-    //  if(PACOUNT(pa)==1304)
-    // {
-    //   printf("decrease %d\n",kcount.count[PACOUNT(pa)]);
-    // }
     release(&kcount.lock);
     return ans;
 }

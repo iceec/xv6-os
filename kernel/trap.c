@@ -39,14 +39,14 @@ int in_range(uint64 va)
     return 0;
   if(va>=p->sz)
     return 0;
-  uint64 guard_page_high=PGROUNDDOWN(p->sz-1);
 
-  if(va>(guard_page_high-PGSIZE)&&va<guard_page_high)
+  if(PGROUNDUP(va) == PGROUNDDOWN(p->trapframe->sp))
     return 0;
   
   pte_t *pte=walk(p->pagetable,va,0);
   if(pte==0||(*pte & PTE_V)==0)
     return 0;
+  
   if((*pte & PTE_F)==0)
     return 0;
 
@@ -97,7 +97,7 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  }else if((r_scause()==13||r_scause()==15)&&in_range(r_stval())==1){
+  }else if((r_scause()==15)&&in_range(r_stval())==1){
     struct proc *p=myproc();
     uint64 va=r_stval();
     uint64 pa=walkaddr(p->pagetable,va);
@@ -113,13 +113,12 @@ usertrap(void)
       flags |= PTE_W;
       flags &= ~(PTE_F);
       if(mem==0){
-        increase_count(pa);
+        increase_count(pa);  //没申请出来要在+1
         p->killed=1;
       }
       else{
         memmove(mem,(const void *)pa,PGSIZE); 
-        *pte=PA2PTE((uint64)mem) | flags;
-
+        *pte=PA2PTE((uint64)mem) | flags;  // 不用maapage直接修改pte就行
       }
     }
 

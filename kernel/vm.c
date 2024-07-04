@@ -39,7 +39,7 @@ kvminit()
   // map kernel text executable and read-only.
   kvmmap(KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
 
-  // map kernel data and the physical RAM we'll make use of.
+  // map kernel data and the physical RAM we'll make use of. 
   kvmmap((uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
 
   // map the trampoline for trap entry/exit to
@@ -364,14 +364,14 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
         return -1;
-      
+
+    // 不会触发pagefault  因为是软件访问页表 已经得知了物理地址了 能找到
+    // kernel 可以访问
+    //  kvmmap((uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
     pte_t *pte=walk(pagetable,va0,0);
     if(*pte & PTE_F)
     {
       int need=decrease_count(pa0);
-
-
-
       if(need==1)
       {
         char *mem=kalloc();
@@ -388,7 +388,6 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
       flags &= ~(PTE_F);
       *pte = PA2PTE(pa0) | flags;
     }
-
 
     n = PGSIZE - (dstva - va0);
     if(n > len)
